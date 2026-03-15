@@ -1,17 +1,18 @@
-import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Briefcase, 
-  Send, 
-  FileText, 
-  Zap, 
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Briefcase,
+  Send,
+  FileText,
+  Zap,
   Settings,
   LogOut,
   CreditCard,
-  User
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/app/dashboard" },
@@ -24,6 +25,12 @@ const navItems = [
 
 export const Sidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <aside className="w-64 border-r bg-card flex flex-col h-screen sticky top-0">
@@ -59,11 +66,13 @@ export const Sidebar = () => {
         <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground px-3">
           <CreditCard className="w-4 h-4" /> Billing
         </Button>
-        <Link to="/">
-          <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 px-3">
-            <LogOut className="w-4 h-4" /> Logout
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 px-3"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-4 h-4" /> Logout
+        </Button>
       </div>
     </aside>
   );

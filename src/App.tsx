@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import DashboardOverview from "./pages/dashboard/Overview";
 import Jobs from "./pages/dashboard/Jobs";
@@ -29,8 +30,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
 
-          {/* Dashboard Routes */}
-          <Route path="/app" element={<DashboardLayout />}>
+          {/* Dashboard Routes (protected) */}
+          <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/app/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardOverview />} />
             <Route path="jobs" element={<Jobs />} />
