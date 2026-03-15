@@ -1,13 +1,17 @@
 /**
  * Vercel serverless API: fetch jobs from Greenhouse and store in Supabase.
  * GET /api/fetch-jobs?companies=stripe,vercel,notion
- * GET /api/fetch-jobs?companies=all
+ * GET /api/fetch-jobs?companies=all  (batched; use offset to get more)
+ * GET /api/fetch-jobs?companies=all&offset=20
  *
  * Requires env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 import { createClient } from "@supabase/supabase-js";
 
 const GREENHOUSE_BASE = "https://boards-api.greenhouse.io/v1/boards";
+
+/** Max boards per request when using companies=all (avoids 60s timeout) */
+const BATCH_SIZE = 15;
 
 const BOARD_SLUGS = [
   "stripe", "vercel", "notion", "cloudflare", "figma", "linear", "supabase", "retool",
@@ -75,7 +79,10 @@ async function fetchGreenhouseJobs(supabase: any, companies: string[]) {
   return { inserted, errors };
 }
 
-export default async function handler(req: { method?: string; query?: { companies?: string } }, res: { status: (n: number) => { end: () => void; json: (x: unknown) => void } }) {
+export default async function handler(
+  req: { method?: string; query?: { companies?: string; offset?: string } },
+  res: { status: (n: number) => { end: () => void; json: (x: unknown) => void } }
+) {
   try {
     if (req.method !== "GET") {
       res.status(405).end();
@@ -90,17 +97,40 @@ export default async function handler(req: { method?: string; query?: { companie
     }
 
     const raw = (req.query?.companies ?? "stripe,vercel,notion").trim().toLowerCase();
-    const companies = raw === "all" ? BOARD_SLUGS : raw.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean);
+    const offset = Math.max(0, parseInt(req.query?.offset ?? "0", 10) || 0);
+
+    let companies: string[];
+    if (raw === "all") {
+      companies = BOARD_SLUGS.slice(offset, offset + BATCH_SIZE);
+    } else {
+      companies = raw.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean);
+    }
 
     if (companies.length === 0) {
-      res.status(400).json({ ok: false, error: "Provide companies (e.g. ?companies=stripe,vercel or ?companies=all)" });
+      res.status(400).json({
+        ok: false,
+        error: "Provide companies (e.g. ?companies=stripe,vercel or ?companies=all) or use &offset= for next batch",
+      });
       return;
     }
 
     const supabase = createClient(url, serviceKey);
     const result = await fetchGreenhouseJobs(supabase, companies);
 
-    res.status(200).json({ ok: true, companies: companies.length, ...result });
+    const nextOffset = raw === "all" ? offset + companies.length : undefined;
+    const hasMore = raw === "all" && nextOffset !== undefined && nextOffset < BOARD_SLUGS.length;
+
+    res.status(200).json({
+      ok: true,
+      companies: companies.length,
+      ...result,
+      ...(raw === "all" && {
+        totalBoards: BOARD_SLUGS.length,
+        offset,
+        nextOffset: hasMore ? nextOffset : undefined,
+        nextUrl: hasMore && nextOffset !== undefined ? `/api/fetch-jobs?companies=all&offset=${nextOffset}` : undefined,
+      }),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("fetch-jobs:", message);
