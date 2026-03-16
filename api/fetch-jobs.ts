@@ -13,20 +13,46 @@ const GREENHOUSE_BASE = "https://boards-api.greenhouse.io/v1/boards";
 /** Max boards per request when using companies=all (avoids 60s timeout) */
 const BATCH_SIZE = 15;
 
-const BOARD_SLUGS = [
-  "stripe", "vercel", "notion", "cloudflare", "figma", "linear", "supabase", "retool",
-  "plausible", "sourcegraph", "mixpanel", "segment", "twilio", "discord", "robinhood",
-  "brex", "plaid", "doordash", "instacart", "airbnb", "dropbox", "box", "asana",
-  "monday", "atlassian", "gitlab", "hashicorp", "datadog", "newrelic", "elastic",
-  "mongodb", "snowflake", "databricks", "confluent", "grafana", "launchdarkly",
-  "pagerduty", "rippling", "deel", "canva", "webflow", "netlify", "railway",
-  "render", "fly", "digitalocean", "fastly", "postman", "circleci", "sentry",
-  "amplitude", "intercom", "zendesk", "hubspot", "salesforce", "shopify", "square",
-  "okta", "auth0", "crowdstrike", "cloudflare", "vimeo", "spotify", "github",
-  "bitbucket", "microsoft", "google", "meta", "apple", "amazon", "netflix",
-  "uber", "lyft", "reddit", "pinterest", "snap", "twitter", "linkedin",
-  "greenhouse", "lever",
+/** Companies with offices / strong hiring in India – fetched first when using ?companies=all */
+const INDIA_PRIORITY_SLUGS = [
+  "stripe", "postman", "freshdesk", "atlassian", "salesforce", "adobe", "microsoft",
+  "google", "amazon", "meta", "netflix", "uber", "linkedin", "slack", "zoom",
+  "datadog", "snowflake", "databricks", "hashicorp", "confluent", "elastic",
+  "mongodb", "cockroachlabs", "twilio", "segment", "mixpanel", "amplitude",
+  "intercom", "zendesk", "hubspot", "shopify", "square", "plaid", "brex",
+  "notion", "figma", "canva", "airtable", "coda", "miro", "gitlab", "github",
+  "cloudflare", "digitalocean", "netlify", "vercel", "turing", "scaleai",
+  "rubrik", "towerresearchcapital", "janestreet", "quadeye", "intuit",
+  "nutanix", "aristanetworks", "deshaw", "walmartglobaltech", "flipkart",
+  "razorpay", "phonepe", "zomato", "swiggy", "dream11", "gravitonresearchcapital",
+  "worldquant",
 ];
+
+/** All other Greenhouse board slugs (fetched after India-priority). */
+const OTHER_SLUGS = [
+  "linear", "supabase", "retool", "plausible", "sourcegraph", "discord", "robinhood",
+  "affirm", "chime", "doordash", "instacart", "grubhub", "airbnb", "dropbox", "box",
+  "asana", "monday", "smartsheet", "newrelic", "splunk", "grafana", "launchdarkly",
+  "pagerduty", "lattice", "rippling", "deel", "remote", "webflow", "railway",
+  "render", "fly", "fastly", "kong", "circleci", "buildkite", "sentry", "bugsnag",
+  "heap", "fullstory", "onelogin", "duo", "crowdstrike", "paloaltonetworks", "zscaler",
+  "akamai", "vimeo", "spotify", "soundcloud", "patreon", "substack", "medium",
+  "bitbucket", "apple", "lyft", "tesla", "rivian", "waymo", "cruise", "nuro",
+  "getaround", "turo", "reddit", "pinterest", "snap", "twitter", "greenhouse",
+  "lever", "ashby", "workable", "breezy", "jazz", "smartrecruiters", "icims",
+  "justworks", "runway", "stability", "openai", "anthropic", "cohere", "huggingface",
+  "replicate", "together", "labelbox", "anduril", "palantir", "dbt", "fivetran",
+  "airbyte", "hotjar", "posthog", "split", "optimizely", "contentful", "sanity",
+  "storyblok", "builder", "framer", "squarespace", "wix", "bigcommerce", "woocommerce",
+  "braintree", "adyen", "recurly", "chargebee", "paddle", "lago", "metronome",
+  "temporal", "inngest", "qstash", "upstash", "planetscale", "neon", "turso",
+  "xata", "convex", "electric", "census", "hightouch", "rudderstack", "meltano",
+  "mercury", "ramp", "divvy", "spendesk", "fal", "baseten", "modal", "runpod",
+  "vast", "lambdalabs", "coreweave", "anyscale", "okta", "auth0", "gusto",
+];
+
+/** All boards: India-priority first, then rest. Use ?companies=all&offset=N to fetch in batches. */
+const BOARD_SLUGS = [...new Set([...INDIA_PRIORITY_SLUGS, ...OTHER_SLUGS])];
 
 export const config = { maxDuration: 60 };
 

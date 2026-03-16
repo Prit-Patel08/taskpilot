@@ -19,7 +19,8 @@ export async function getJobs(): Promise<Job[]> {
   const { data, error } = await supabase
     .from("jobs")
     .select("id, external_id, source, company, title, location, description, apply_url, created_at")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(50000);
 
   if (error) {
     console.error("getJobs error:", error);
