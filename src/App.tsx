@@ -15,6 +15,7 @@ import Applications from "./pages/dashboard/Applications";
 import ResumeAI from "./pages/dashboard/Resume";
 import Automation from "./pages/dashboard/Automation";
 import Settings from "./pages/dashboard/Settings";
+import Metrics from "./pages/dashboard/Metrics";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route index element={<Navigate to="/app/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardOverview />} />
             <Route path="jobs" element={<Jobs />} />
+            <Route path="metrics" element={<Metrics />} />
             <Route path="applications" element={<Applications />} />
             <Route path="resume" element={<ResumeAI />} />
             <Route path="automation" element={<Automation />} />

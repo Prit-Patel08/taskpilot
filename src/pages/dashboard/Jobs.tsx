@@ -20,7 +20,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { getJobs, type Job } from "@/lib/jobsDb";
+import { fetchMetrics, searchJobs, type Job } from "@/lib/jobsDb";
 
 function normalizeCountry(location: string | null): string | null {
   if (!location) return null;
@@ -59,8 +59,20 @@ function normalizeCountry(location: string | null): string | null {
 
 const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [queueDepth, setQueueDepth] = useState<number | null>(null);
+  const [failureRate, setFailureRate] = useState<number | null>(null);
+  const [totals, setTotals] = useState<{
+    runs: number;
+    inserted: number;
+    skipped: number;
+    duplicates: number;
+    failed: number;
+  } | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [companyOpen, setCompanyOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
@@ -74,8 +86,19 @@ const Jobs = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getJobs();
-      setJobs(data);
+      const locationParam =
+        locationSearch.trim() ||
+        (countryFilter !== "all" ? countryFilter : "");
+
+      const result = await searchJobs({
+        query: roleSearch.trim() || undefined,
+        company: companyFilter !== "all" ? companyFilter : undefined,
+        location: locationParam || undefined,
+        page,
+        pageSize: JOBS_PER_PAGE,
+      });
+      setJobs(result.jobs);
+      setTotal(result.total);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load jobs");
     } finally {
@@ -83,9 +106,29 @@ const Jobs = () => {
     }
   };
 
+  const loadMetrics = async () => {
+    setMetricsLoading(true);
+    setMetricsError(null);
+    try {
+      const data = await fetchMetrics();
+      setQueueDepth(data.queueDepth);
+      setFailureRate(data.failureRate);
+      setTotals(data.totals);
+    } catch (e) {
+      setMetricsError(e instanceof Error ? e.message : "Failed to load metrics");
+    } finally {
+      setMetricsLoading(false);
+    }
+  };
+
   useEffect(() => {
+    if (page !== 1) {
+      setPage(1);
+      return;
+    }
     loadJobs();
-  }, []);
+    loadMetrics();
+  }, [page, companyFilter, countryFilter, roleSearch, locationSearch]);
 
   const companies = useMemo(() => {
     const set = new Set(jobs.map((j) => j.company).filter(Boolean));
@@ -101,31 +144,16 @@ const Jobs = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
-  const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      if (companyFilter && companyFilter !== "all" && job.company !== companyFilter) return false;
-      if (countryFilter && countryFilter !== "all") {
-        const c = normalizeCountry(job.location);
-        if (c !== countryFilter) return false;
-      }
-      if (roleSearch.trim() && !job.title.toLowerCase().includes(roleSearch.trim().toLowerCase())) return false;
-      if (locationSearch.trim()) {
-        const loc = (job.location ?? "").toLowerCase();
-        if (!loc.includes(locationSearch.trim().toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [jobs, companyFilter, countryFilter, roleSearch, locationSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / JOBS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(total / JOBS_PER_PAGE));
   const pageJobs = useMemo(() => {
-    const start = (page - 1) * JOBS_PER_PAGE;
-    return filteredJobs.slice(start, start + JOBS_PER_PAGE);
-  }, [filteredJobs, page]);
+    return jobs;
+  }, [jobs]);
 
   useEffect(() => {
-    setPage(1);
-  }, [companyFilter, countryFilter, roleSearch, locationSearch]);
+    if (page !== 1) {
+      setPage(1);
+    }
+  }, [companyFilter, countryFilter, roleSearch, locationSearch, page]);
 
   return (
     <div className="space-y-8">
@@ -133,14 +161,65 @@ const Jobs = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Job Matches</h1>
           <p className="text-muted-foreground">
-            Filter by company, role, or location. Fetch more via <code className="text-xs bg-muted px-1 rounded">/api/fetch-jobs</code>.
+            Filter by company, role, or location. Results are server-side and paginated.
           </p>
         </div>
-        <Button className="rounded-full" onClick={loadJobs} disabled={loading}>
+        <Button
+          className="rounded-full"
+          onClick={() => {
+            loadJobs();
+            loadMetrics();
+          }}
+          disabled={loading}
+        >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
           Refresh
         </Button>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-none shadow-sm">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs uppercase text-muted-foreground">Queue Depth</p>
+            <p className="text-2xl font-bold">
+              {metricsLoading ? "…" : queueDepth ?? 0}
+            </p>
+            <p className="text-xs text-muted-foreground">Queued ingestion tasks</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs uppercase text-muted-foreground">Failure Rate</p>
+            <p className="text-2xl font-bold">
+              {metricsLoading
+                ? "…"
+                : `${(((failureRate ?? 0) * 100) || 0).toFixed(1)}%`}
+            </p>
+            <p className="text-xs text-muted-foreground">Last 60 minutes</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs uppercase text-muted-foreground">Runs (24h)</p>
+            <p className="text-2xl font-bold">{metricsLoading ? "…" : totals?.runs ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Total ingestion runs</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-xs uppercase text-muted-foreground">Inserted (24h)</p>
+            <p className="text-2xl font-bold">{metricsLoading ? "…" : totals?.inserted ?? 0}</p>
+            <p className="text-xs text-muted-foreground">New jobs stored</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {metricsError && (
+        <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-3 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {metricsError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2">
@@ -259,9 +338,9 @@ const Jobs = () => {
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            Showing {filteredJobs.length} of {jobs.length} jobs
-            {(companyFilter !== "all" || roleSearch.trim() || locationSearch.trim()) && " (filtered)"}
-            {filteredJobs.length > JOBS_PER_PAGE && ` · Page ${page} of ${totalPages}`}
+            Showing {jobs.length} of {total} jobs
+            {(companyFilter !== "all" || roleSearch.trim() || locationSearch.trim() || countryFilter !== "all") && " (filtered)"}
+            {total > JOBS_PER_PAGE && ` · Page ${page} of ${totalPages}`}
           </p>
           <div className="space-y-4">
             {pageJobs.map((job) => (
@@ -272,15 +351,15 @@ const Jobs = () => {
                     <div className="flex-grow p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center font-bold text-xl text-muted-foreground">
-                          {job.company[0]?.toUpperCase() ?? "?"}
+                          {(job.company ?? "?")[0]?.toUpperCase() ?? "?"}
                         </div>
                         <div>
                           <h3 className="text-lg font-bold mb-1 group-hover:text-primary transition-colors">
-                            {job.title}
+                            {job.title ?? "Untitled role"}
                           </h3>
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1.5">
-                              <Briefcase className="w-3.5 h-3.5" /> {job.company}
+                              <Briefcase className="w-3.5 h-3.5" /> {job.company ?? "Unknown company"}
                             </span>
                             {job.location && (
                               <span className="flex items-center gap-1.5">
@@ -291,8 +370,8 @@ const Jobs = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 pl-6 border-l">
-                        <Button className="rounded-full px-6 gap-2" asChild>
-                          <a href={job.apply_url} target="_blank" rel="noopener noreferrer">
+                        <Button className="rounded-full px-6 gap-2" asChild disabled={!job.apply_url}>
+                          <a href={job.apply_url ?? "#"} target="_blank" rel="noopener noreferrer">
                             Apply <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         </Button>
@@ -303,10 +382,10 @@ const Jobs = () => {
               </Card>
             ))}
           </div>
-          {filteredJobs.length === 0 && (
+          {jobs.length === 0 && (
             <p className="text-center text-muted-foreground py-8">No jobs match the current filters.</p>
           )}
-          {filteredJobs.length > JOBS_PER_PAGE && (
+          {total > JOBS_PER_PAGE && (
             <div className="flex items-center justify-center gap-4 pt-6">
               <Button
                 variant="outline"

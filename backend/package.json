@@ -6,7 +6,17 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "ingest:once": "tsx src/jobs/jobIngestionWorker.ts",
+    "discover:once": "tsx src/discovery/companyDiscoveryWorker.ts",
+    "ingest:once": "tsx src/ingestion/jobIngestionWorker.ts",
+    "ingest:worker": "tsx src/ingestion/worker.ts",
+    "ingest:supervisor": "tsx src/ingestion/workerSupervisor.ts",
+    "ingest:scheduler": "tsx src/ingestion/scheduler.ts",
+    "backfill:normalize": "tsx src/ingestion/backfillNormalization.ts",
+    "rank:once": "tsx src/ranking/rankingWorker.ts",
+    "rank:scheduler": "tsx src/ranking/rankingScheduler.ts",
+    "monitor:metrics": "tsx src/monitoring/metricsWorker.ts",
+    "monitor:alerts": "tsx src/monitoring/alertsWorker.ts",
+    "monitor:scheduler": "tsx src/monitoring/monitoringScheduler.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
@@ -15,7 +25,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "node-fetch": "^3.3.2",
     "node-cron": "^4.2.1",
     "p-limit": "^7.3.0",
     "pg": "^8.20.0",

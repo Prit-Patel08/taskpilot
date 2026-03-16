@@ -1,31 +1,87 @@
-/**
- * Client-side: fetch jobs from Supabase for the Jobs dashboard page.
- */
-import { supabase } from "./supabaseClient";
-
 export interface Job {
   id: string;
-  external_id: string;
-  source: string;
-  company: string;
-  title: string;
+  source: string | null;
+  company: string | null;
+  title: string | null;
   location: string | null;
-  description: string | null;
-  apply_url: string;
-  created_at: string;
+  location_norm: string | null;
+  remote_type: string | null;
+  posted_at: string | null;
+  apply_url: string | null;
+  seniority: string | null;
+  employment_type: string | null;
+  rank_score?: number | null;
 }
 
-export async function getJobs(): Promise<Job[]> {
-  const { data, error } = await supabase
-    .from("jobs")
-    .select("id, external_id, source, company, title, location, description, apply_url, created_at")
-    .order("created_at", { ascending: false })
-    .limit(50000);
+export interface JobSearchParams {
+  query?: string;
+  company?: string;
+  location?: string;
+  remote?: string;
+  page?: number;
+  pageSize?: number;
+}
 
-  if (error) {
-    console.error("getJobs error:", error);
-    throw error;
+export interface JobSearchResponse {
+  jobs: Job[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface IngestionMetricsRow {
+  metric_date: string;
+  source: string;
+  total_runs: number;
+  total_inserted: number;
+  total_skipped: number;
+  total_duplicates: number;
+  failed_runs: number;
+}
+
+export interface MetricsSummary {
+  queueDepth: number;
+  failureRate: number;
+  totals: {
+    runs: number;
+    inserted: number;
+    skipped: number;
+    duplicates: number;
+    failed: number;
+  };
+  bySource: IngestionMetricsRow[];
+}
+
+export async function searchJobs(
+  params: JobSearchParams,
+): Promise<JobSearchResponse> {
+  const qs = new URLSearchParams();
+  if (params.query) qs.set("q", params.query);
+  if (params.company) qs.set("company", params.company);
+  if (params.location) qs.set("location", params.location);
+  if (params.remote) qs.set("remote", params.remote);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.pageSize) qs.set("pageSize", String(params.pageSize));
+
+  const res = await fetch(`/api/search-jobs?${qs.toString()}`);
+  const body = await res.json();
+  if (!res.ok || !body.ok) {
+    throw new Error(body?.error ?? "Search failed");
   }
 
-  return (data ?? []) as Job[];
+  return {
+    jobs: (body.jobs ?? []) as Job[],
+    total: body.total ?? 0,
+    page: body.page ?? params.page ?? 1,
+    pageSize: body.pageSize ?? params.pageSize ?? 20,
+  };
+}
+
+export async function fetchMetrics(): Promise<MetricsSummary> {
+  const res = await fetch("/api/metrics");
+  const body = await res.json();
+  if (!res.ok || !body.ok) {
+    throw new Error(body?.error ?? "Failed to load metrics");
+  }
+  return body.metrics as MetricsSummary;
 }

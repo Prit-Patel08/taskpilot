@@ -1,6 +1,6 @@
-import fetch from "node-fetch";
 import type { Company, RawJob } from "../types";
 import { log } from "../../logger";
+import { fetchJson } from "../httpClient";
 
 interface LeverJob {
   id: string;
@@ -19,21 +19,20 @@ export async function fetchLeverJobs(company: Company): Promise<RawJob[]> {
   const url = `https://api.lever.co/v0/postings/${encodeURIComponent(
     company.ats_slug,
   )}?mode=json`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "JobIngestionBot/1.0 (+https://yourdomain.com)",
-    },
-  });
-
-  if (!res.ok) {
+  let data: LeverJob[] = [];
+  try {
+    data = await fetchJson<LeverJob[]>(url, {
+      headers: {
+        "User-Agent": "TaskPilotBot/1.0 (+https://yourdomain.com)",
+      },
+    });
+  } catch (err) {
     log.warn("Lever request failed", {
       companyId: company.id,
-      status: res.status,
+      error: err instanceof Error ? err.message : String(err),
     });
     return [];
   }
-
-  const data = (await res.json()) as LeverJob[];
   const jobs: RawJob[] = data.map((job) => ({
     companyName: company.name,
     title: job.text.trim(),
@@ -43,6 +42,7 @@ export async function fetchLeverJobs(company: Company): Promise<RawJob[]> {
     postedAt: job.createdAt ? new Date(job.createdAt) : null,
     source: "lever",
     externalId: job.id,
+    rawPayload: job,
   }));
 
   log.info("Fetched Lever jobs", {

@@ -1,6 +1,6 @@
-import fetch from "node-fetch";
 import type { Company, RawJob } from "../types";
 import { log } from "../../logger";
+import { fetchJson } from "../httpClient";
 
 interface AshbyJob {
   id: string;
@@ -36,24 +36,23 @@ export async function fetchAshbyJobs(company: Company): Promise<RawJob[]> {
     `,
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "JobIngestionBot/1.0 (+https://yourdomain.com)",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
+  let json: { data?: { jobBoard?: { jobs?: AshbyJob[] } } } = {};
+  try {
+    json = await fetchJson(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "TaskPilotBot/1.0 (+https://yourdomain.com)",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
     log.warn("Ashby request failed", {
       companyId: company.id,
-      status: res.status,
+      error: err instanceof Error ? err.message : String(err),
     });
     return [];
   }
-
-  const json = await res.json();
   const jobsData: AshbyJob[] = json?.data?.jobBoard?.jobs ?? [];
   const jobs: RawJob[] = jobsData.map((job) => ({
     companyName: company.name,
@@ -64,6 +63,7 @@ export async function fetchAshbyJobs(company: Company): Promise<RawJob[]> {
     postedAt: job.createdAt ? new Date(job.createdAt) : null,
     source: "ashby",
     externalId: job.id,
+    rawPayload: job,
   }));
 
   log.info("Fetched Ashby jobs", {

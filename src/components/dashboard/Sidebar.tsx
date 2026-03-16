@@ -9,6 +9,7 @@ import {
   LogOut,
   CreditCard,
   User,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { supabase } from "@/lib/supabaseClient";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/app/dashboard" },
   { icon: Briefcase, label: "Jobs", path: "/app/jobs" },
+  { icon: BarChart3, label: "Metrics", path: "/app/metrics" },
   { icon: Send, label: "Applications", path: "/app/applications" },
   { icon: FileText, label: "Resume AI", path: "/app/resume" },
   { icon: Zap, label: "Automation", path: "/app/automation" },

@@ -1,6 +1,6 @@
-import fetch from "node-fetch";
 import type { Company, RawJob } from "../types";
 import { log } from "../../logger";
+import { fetchText } from "../httpClient";
 
 export async function fetchGreenhouseJobs(company: Company): Promise<RawJob[]> {
   if (!company.ats_slug) return [];
@@ -8,21 +8,20 @@ export async function fetchGreenhouseJobs(company: Company): Promise<RawJob[]> {
   const url = `https://boards.greenhouse.io/embed/job_board?for=${encodeURIComponent(
     company.ats_slug,
   )}`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "JobIngestionBot/1.0 (+https://yourdomain.com)",
-    },
-  });
-
-  if (!res.ok) {
+  let html: string;
+  try {
+    html = await fetchText(url, {
+      headers: {
+        "User-Agent": "TaskPilotBot/1.0 (+https://yourdomain.com)",
+      },
+    });
+  } catch (err) {
     log.warn("Greenhouse request failed", {
       companyId: company.id,
-      status: res.status,
+      error: err instanceof Error ? err.message : String(err),
     });
     return [];
   }
-
-  const html = await res.text();
   const jobs: RawJob[] = [];
   const jobRegex =
     /<div[^>]*class="opening"[^>]*data\-gh\-job\-id="(?<id>\d+)"[^>]*>[\s\S]*?<a[^>]*href="(?<url>[^"]+)"[^>]*>(?<title>[^<]+)<\/a>[\s\S]*?<span[^>]*class="location"[^>]*>(?<location>[^<]*)<\/span>/gi;
@@ -46,6 +45,12 @@ export async function fetchGreenhouseJobs(company: Company): Promise<RawJob[]> {
       postedAt: null,
       source: "greenhouse",
       externalId,
+      rawPayload: {
+        id: externalId,
+        title,
+        location,
+        applyUrl,
+      },
     });
   }
 
