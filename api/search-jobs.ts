@@ -14,6 +14,32 @@ function toNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function buildLocationTerms(input: string): string[] {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized) return [];
+
+  const aliasMap: Record<string, string[]> = {
+    bengaluru: ["bengaluru", "bangalore"],
+    bangalore: ["bangalore", "bengaluru"],
+    gurugram: ["gurugram", "gurgaon"],
+    gurgaon: ["gurgaon", "gurugram"],
+    mumbai: ["mumbai", "bombay"],
+    bombay: ["bombay", "mumbai"],
+    delhi: ["delhi", "new delhi"],
+    "new delhi": ["new delhi", "delhi"],
+    hyderabad: ["hyderabad", "hyd"],
+    hyd: ["hyd", "hyderabad"],
+    sf: ["sf", "san francisco", "bay area"],
+    "san francisco": ["san francisco", "sf", "bay area"],
+    nyc: ["nyc", "new york", "new york city"],
+    "new york": ["new york", "nyc", "new york city"],
+    "new york city": ["new york city", "new york", "nyc"],
+  };
+
+  const terms = aliasMap[normalized] ?? [normalized];
+  return Array.from(new Set(terms));
+}
+
 export default async function handler(
   req: {
     method?: string;
@@ -66,7 +92,13 @@ export default async function handler(
     }
 
     if (location) {
-      query = query.ilike("location_norm", `%${location}%`);
+      const terms = buildLocationTerms(location);
+      const orParts = terms.flatMap((term) => [
+        `location_norm.ilike.%${term}%`,
+        `location.ilike.%${term}%`,
+        `location_raw.ilike.%${term}%`,
+      ]);
+      query = query.or(orParts.join(","));
     }
 
     if (remote === "remote" || remote === "hybrid" || remote === "onsite") {
