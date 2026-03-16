@@ -52,6 +52,17 @@ export interface MetricsSummary {
   bySource: IngestionMetricsRow[];
 }
 
+export async function fetchCompanies(search?: string): Promise<string[]> {
+  const qs = new URLSearchParams();
+  if (search) qs.set("q", search);
+  const res = await fetch(`/api/companies?${qs.toString()}`);
+  const body = await res.json();
+  if (!res.ok || !body.ok) {
+    throw new Error(body?.error ?? "Failed to load companies");
+  }
+  return (body.companies ?? []) as string[];
+}
+
 export async function searchJobs(
   params: JobSearchParams,
 ): Promise<JobSearchResponse> {

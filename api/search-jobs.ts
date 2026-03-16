@@ -14,6 +14,17 @@ function toNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function buildSearchQuery(input: string): string | null {
+  const tokens = input
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean);
+  if (!tokens.length) return null;
+  return tokens.map((token) => `${token}:*`).join(" & ");
+}
+
 function buildLocationTerms(input: string): string[] {
   const normalized = input.trim().toLowerCase();
   if (!normalized) return [];
@@ -84,7 +95,14 @@ export default async function handler(
       );
 
     if (q) {
-      query = query.textSearch("search_tsv", q, { type: "websearch" });
+      const tsQuery = buildSearchQuery(q);
+      if (tsQuery) {
+        query = query.textSearch("search_tsv", tsQuery, { type: "raw" });
+      } else {
+        query = query.or(
+          `title.ilike.%${q}%,company.ilike.%${q}%,description.ilike.%${q}%`,
+        );
+      }
     }
 
     if (company) {

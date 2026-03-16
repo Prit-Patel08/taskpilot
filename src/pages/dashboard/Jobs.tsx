@@ -20,7 +20,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { fetchMetrics, searchJobs, type Job } from "@/lib/jobsDb";
+import { fetchCompanies, fetchMetrics, searchJobs, type Job } from "@/lib/jobsDb";
 
 function normalizeCountry(location: string | null): string | null {
   if (!location) return null;
@@ -73,6 +73,9 @@ const Jobs = () => {
     duplicates: number;
     failed: number;
   } | null>(null);
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companiesError, setCompaniesError] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [companyOpen, setCompanyOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
@@ -121,6 +124,19 @@ const Jobs = () => {
     }
   };
 
+  const loadCompanies = async () => {
+    setCompaniesLoading(true);
+    setCompaniesError(null);
+    try {
+      const data = await fetchCompanies();
+      setCompanies(data);
+    } catch (e) {
+      setCompaniesError(e instanceof Error ? e.message : "Failed to load companies");
+    } finally {
+      setCompaniesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (page !== 1) {
       setPage(1);
@@ -130,10 +146,9 @@ const Jobs = () => {
     loadMetrics();
   }, [page, companyFilter, countryFilter, roleSearch, locationSearch]);
 
-  const companies = useMemo(() => {
-    const set = new Set(jobs.map((j) => j.company).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
+  useEffect(() => {
+    loadCompanies();
+  }, []);
 
   const countries = useMemo(() => {
     const set = new Set<string>();
@@ -242,32 +257,40 @@ const Jobs = () => {
               <Command>
                 <CommandInput placeholder="Search company..." />
                 <CommandList>
-                  <CommandEmpty>No company found.</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem
-                      value="all"
-                      onSelect={() => {
-                        setCompanyFilter("all");
-                        setCompanyOpen(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", companyFilter === "all" ? "opacity-100" : "opacity-0")} />
-                      All companies
-                    </CommandItem>
-                    {companies.map((c) => (
-                      <CommandItem
-                        key={c}
-                        value={c}
-                        onSelect={() => {
-                          setCompanyFilter(c);
-                          setCompanyOpen(false);
-                        }}
-                      >
-                        <Check className={cn("mr-2 h-4 w-4", companyFilter === c ? "opacity-100" : "opacity-0")} />
-                        {c}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                  {companiesLoading ? (
+                    <div className="p-3 text-sm text-muted-foreground">Loading companies…</div>
+                  ) : companiesError ? (
+                    <div className="p-3 text-sm text-destructive">{companiesError}</div>
+                  ) : (
+                    <>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => {
+                            setCompanyFilter("all");
+                            setCompanyOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", companyFilter === "all" ? "opacity-100" : "opacity-0")} />
+                          All companies
+                        </CommandItem>
+                        {companies.map((c) => (
+                          <CommandItem
+                            key={c}
+                            value={c}
+                            onSelect={() => {
+                              setCompanyFilter(c);
+                              setCompanyOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", companyFilter === c ? "opacity-100" : "opacity-0")} />
+                            {c}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>
