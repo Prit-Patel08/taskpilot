@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Search, MapPin, Briefcase, Loader2, ExternalLink, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, MapPin, Briefcase, Loader2, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, ChevronsUpDown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,15 +10,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { getJobs, type Job } from "@/lib/jobsDb";
+
+function normalizeCountry(location: string | null): string | null {
+  if (!location) return null;
+  const s = location.trim();
+  if (!s) return null;
+  const lower = s.toLowerCase();
+
+  // Common patterns seen in Greenhouse location.name strings
+  if (lower.includes("india")) return "India";
+  if (lower.includes("united states") || /\bus\b/.test(lower) || lower.includes("u.s.")) return "United States";
+  if (lower.includes("united kingdom") || /\buk\b/.test(lower)) return "United Kingdom";
+  if (lower.includes("ireland")) return "Ireland";
+  if (lower.includes("canada")) return "Canada";
+  if (lower.includes("australia")) return "Australia";
+  if (lower.includes("singapore")) return "Singapore";
+  if (lower.includes("germany")) return "Germany";
+  if (lower.includes("france")) return "France";
+  if (lower.includes("spain")) return "Spain";
+  if (lower.includes("italy")) return "Italy";
+  if (lower.includes("japan")) return "Japan";
+  if (lower.includes("brazil")) return "Brazil";
+  if (lower.includes("mexico")) return "Mexico";
+  if (lower.includes("netherlands")) return "Netherlands";
+  if (lower.includes("sweden")) return "Sweden";
+  if (lower.includes("switzerland")) return "Switzerland";
+  if (lower.includes("poland")) return "Poland";
+  if (lower.includes("romania")) return "Romania";
+  if (lower.includes("portugal")) return "Portugal";
+  if (lower.includes("south africa")) return "South Africa";
+  if (lower.includes("new zealand")) return "New Zealand";
+
+  // Fallback: last comma-separated segment
+  const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 1] : null;
+}
 
 const Jobs = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [companyOpen, setCompanyOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
 
   const JOBS_PER_PAGE = 20;
@@ -45,9 +92,22 @@ const Jobs = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
+  const countries = useMemo(() => {
+    const set = new Set<string>();
+    for (const j of jobs) {
+      const c = normalizeCountry(j.location);
+      if (c) set.add(c);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       if (companyFilter && companyFilter !== "all" && job.company !== companyFilter) return false;
+      if (countryFilter && countryFilter !== "all") {
+        const c = normalizeCountry(job.location);
+        if (c !== countryFilter) return false;
+      }
       if (roleSearch.trim() && !job.title.toLowerCase().includes(roleSearch.trim().toLowerCase())) return false;
       if (locationSearch.trim()) {
         const loc = (job.location ?? "").toLowerCase();
@@ -55,7 +115,7 @@ const Jobs = () => {
       }
       return true;
     });
-  }, [jobs, companyFilter, roleSearch, locationSearch]);
+  }, [jobs, companyFilter, countryFilter, roleSearch, locationSearch]);
 
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / JOBS_PER_PAGE));
   const pageJobs = useMemo(() => {
@@ -65,7 +125,7 @@ const Jobs = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [companyFilter, roleSearch, locationSearch]);
+  }, [companyFilter, countryFilter, roleSearch, locationSearch]);
 
   return (
     <div className="space-y-8">
@@ -82,16 +142,67 @@ const Jobs = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Company</label>
-          <Select value={companyFilter} onValueChange={setCompanyFilter}>
+          <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={companyOpen}
+                className="w-full justify-between rounded-xl"
+              >
+                <span className="truncate">
+                  {companyFilter === "all" ? "All companies" : companyFilter}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search company..." />
+                <CommandList>
+                  <CommandEmpty>No company found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="all"
+                      onSelect={() => {
+                        setCompanyFilter("all");
+                        setCompanyOpen(false);
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", companyFilter === "all" ? "opacity-100" : "opacity-0")} />
+                      All companies
+                    </CommandItem>
+                    {companies.map((c) => (
+                      <CommandItem
+                        key={c}
+                        value={c}
+                        onSelect={() => {
+                          setCompanyFilter(c);
+                          setCompanyOpen(false);
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", companyFilter === c ? "opacity-100" : "opacity-0")} />
+                        {c}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Country</label>
+          <Select value={countryFilter} onValueChange={setCountryFilter}>
             <SelectTrigger className="rounded-xl">
-              <SelectValue placeholder="All companies" />
+              <SelectValue placeholder="All countries" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All companies</SelectItem>
-              {companies.map((c) => (
+              <SelectItem value="all">All countries</SelectItem>
+              {countries.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
