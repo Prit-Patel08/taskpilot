@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Search, MapPin, Briefcase, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { Search, MapPin, Briefcase, Loader2, ExternalLink, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,9 @@ const Jobs = () => {
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [roleSearch, setRoleSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const JOBS_PER_PAGE = 20;
 
   const loadJobs = async () => {
     setLoading(true);
@@ -53,6 +56,16 @@ const Jobs = () => {
       return true;
     });
   }, [jobs, companyFilter, roleSearch, locationSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / JOBS_PER_PAGE));
+  const pageJobs = useMemo(() => {
+    const start = (page - 1) * JOBS_PER_PAGE;
+    return filteredJobs.slice(start, start + JOBS_PER_PAGE);
+  }, [filteredJobs, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [companyFilter, roleSearch, locationSearch]);
 
   return (
     <div className="space-y-8">
@@ -137,9 +150,10 @@ const Jobs = () => {
           <p className="text-sm text-muted-foreground">
             Showing {filteredJobs.length} of {jobs.length} jobs
             {(companyFilter !== "all" || roleSearch.trim() || locationSearch.trim()) && " (filtered)"}
+            {filteredJobs.length > JOBS_PER_PAGE && ` · Page ${page} of ${totalPages}`}
           </p>
           <div className="space-y-4">
-            {filteredJobs.map((job) => (
+            {pageJobs.map((job) => (
               <Card key={job.id} className="border-none shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
@@ -180,6 +194,31 @@ const Jobs = () => {
           </div>
           {filteredJobs.length === 0 && (
             <p className="text-center text-muted-foreground py-8">No jobs match the current filters.</p>
+          )}
+          {filteredJobs.length > JOBS_PER_PAGE && (
+            <div className="flex items-center justify-center gap-4 pt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </>
       )}
